@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>連続ラリーカウンター｜四国フレスコボール協会</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1f2733; --line:#2a3340;
+    --fg:#e6edf3; --muted:#8b98a9; --accent:#39d98a; --accent2:#2bb3ff;
+    --warn:#ffb020; --danger:#ff5d5d; --gold:#ffd54a; --silver:#cfd8e3; --bronze:#e0a267;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; height:100%}
+  body{
+    background:radial-gradient(1200px 800px at 50% -10%, #12202b 0%, var(--bg) 55%);
+    color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Segoe UI",sans-serif;
+    overscroll-behavior:none;
+  }
+  button{font-family:inherit; cursor:pointer}
+  .hidden{display:none !important}
+
+  /* ---------- 共通：ランディング ---------- */
+  .wrap{max-width:720px; margin:0 auto; padding:24px 18px 48px}
+  .brand{font-size:13px; letter-spacing:.08em; color:var(--muted)}
+  h1{font-size:26px; margin:6px 0 2px; line-height:1.3}
+  .lead{color:var(--muted); font-size:14px; margin:0 0 22px; line-height:1.7}
+  .bigbtns{display:grid; gap:14px}
+  .bigbtn{display:block; text-decoration:none; color:var(--fg); background:var(--panel);
+    border:1px solid var(--line); border-radius:18px; padding:22px 20px}
+  .bigbtn b{font-size:20px} .bigbtn span{display:block; color:var(--muted); font-size:13px; margin-top:4px}
+  .bigbtn.count{border-color:#1f5c42; background:linear-gradient(180deg,#12261d,#13201a)}
+  .bigbtn.board{border-color:#1d4a63; background:linear-gradient(180deg,#0f2330,#121b22)}
+
+  /* ---------- 入口ランキング ---------- */
+  .rank-tabs{display:flex; gap:8px; margin:10px 0; flex-wrap:wrap}
+  .rank-tabs .tab{padding:8px 15px; border-radius:999px; border:1px solid var(--line);
+    background:var(--panel); color:var(--muted); font-size:14px; font-weight:700}
+  .rank-tabs .tab.on{background:linear-gradient(180deg,#2bb3ff,#1784c7); color:#021019; border-color:transparent}
+  .rank-tabs.part .tab.on{background:linear-gradient(180deg,#2fbf79,#1f8f5a)}
+  .lrow{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:10px 12px; margin-bottom:8px}
+  .lrow .lrank{font-weight:800; font-size:18px; min-width:1.8em; text-align:center; color:var(--muted)}
+  .lrow.m1{background:linear-gradient(180deg,#2a2410,#1a1708); border-color:#6b5a1e} .lrow.m1 .lrank{color:var(--gold)}
+  .lrow.m2{background:linear-gradient(180deg,#20242a,#14181d); border-color:#49566a} .lrow.m2 .lrank{color:var(--silver)}
+  .lrow.m3{background:linear-gradient(180deg,#241a12,#17110b); border-color:#6b4a2a} .lrow.m3 .lrank{color:var(--bronze)}
+  .lrow .lmeta{flex:1; min-width:0}
+  .lrow .lnm{font-weight:800; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .lrow .lsm{color:var(--muted); font-size:12px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .lrow .lcnt{font-variant-numeric:tabular-nums; font-weight:800; font-size:26px; color:var(--accent); white-space:nowrap}
+  .lrow .lcnt small{font-size:.5em; color:var(--muted); margin-left:2px; font-weight:600}
+
+  /* ---------- 上部タブ（記録 / ランキング 切り替え） ---------- */
+  .tabbar{display:flex; gap:8px; max-width:720px; margin:0 auto; padding:12px 18px 2px}
+  .tabbar .tab{flex:1; text-align:center; text-decoration:none; padding:12px 10px; border-radius:12px;
+    border:1px solid var(--line); background:var(--panel); color:var(--muted); font-weight:800; font-size:15px}
+  .tabbar .tab.on{color:#06160e; border-color:transparent}
+  .tabbar .tab.on[data-mode="count"]{background:linear-gradient(180deg,#2fbf79,#1f8f5a)}
+  .tabbar .tab.on[data-mode="rank"]{background:linear-gradient(180deg,#2bb3ff,#1784c7)}
+
+  /* ---------- COUNT モード ---------- */
+  .count-top{padding:14px 16px 10px; border-bottom:1px solid var(--line); background:var(--panel)}
+  .row{display:flex; gap:10px; flex-wrap:wrap}
+  .field{flex:1 1 140px; min-width:120px}
+  .field label{display:block; font-size:11px; color:var(--muted); margin:0 0 4px}
+  .field input,.field select{width:100%; background:var(--panel2); color:var(--fg);
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:15px}
+  .count-main{display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:10px 16px; text-align:center}
+  .timerbar{font-variant-numeric:tabular-nums; color:var(--muted); font-size:15px; margin:10px 0 2px}
+  .bignum{font-variant-numeric:tabular-nums; font-weight:800; line-height:.9;
+    font-size:clamp(90px,34vw,220px); margin:4px 0; color:var(--accent);
+    text-shadow:0 0 40px rgba(57,217,138,.25)}
+  .bignum.flash{animation:pop .22s ease}
+  @keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
+  .sub{color:var(--muted); font-size:13px; min-height:20px}
+  .tap{margin:14px 16px 10px; height:160px; border-radius:22px; border:none;
+    background:linear-gradient(180deg,#2fbf79,#1f8f5a); color:#06160e; font-size:26px; font-weight:800;
+    box-shadow:0 10px 30px rgba(31,143,90,.35); width:calc(100% - 32px)}
+  .tap:active{transform:translateY(2px); filter:brightness(.95)}
+  .tap[disabled]{opacity:.45}
+  .controls{display:flex; gap:10px; padding:0 16px 10px}
+  .controls button{flex:1; padding:14px; border-radius:12px; border:1px solid var(--line);
+    background:var(--panel2); color:var(--fg); font-size:15px; font-weight:700}
+  .controls .start{background:var(--accent); color:#06160e; border-color:transparent}
+  .controls .stop{background:var(--warn); color:#1a1200; border-color:transparent}
+  .controls .reset{background:transparent}
+  .sound-row{display:flex; align-items:center; gap:10px; padding:4px 16px 16px}
+  .sound-row select{flex:1; background:var(--panel2); color:var(--fg); border:1px solid var(--line);
+    border-radius:10px; padding:10px 12px; font-size:14px}
+  .sound-row button{background:var(--panel2); color:var(--fg); border:1px solid var(--line);
+    border-radius:10px; padding:10px 14px; font-size:14px}
+
+  .records{padding:8px 16px 0}
+  .records h2{font-size:14px; color:var(--muted); margin:16px 0 8px; display:flex; justify-content:space-between}
+  .syncpill{font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted)}
+  .note{color:var(--muted); font-size:12px; line-height:1.6; margin:0 0 10px}
+  .formbtn{display:block; text-align:center; text-decoration:none; background:var(--accent2); color:#021019;
+    font-weight:800; border-radius:12px; padding:13px 16px; margin:0 0 12px; font-size:15px}
+  .rec{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px}
+  .recline{display:flex; align-items:center; gap:8px}
+  .rec .adj{width:44px; height:44px; flex:0 0 auto; border-radius:10px; border:1px solid var(--line);
+    background:var(--panel2); color:var(--fg); font-size:24px; font-weight:800; line-height:1}
+  .rec .adj:active{filter:brightness(.85)}
+  .rec .cnt{font-variant-numeric:tabular-nums; font-weight:800; font-size:26px; color:var(--accent); min-width:58px; text-align:center}
+  .rec .meta{flex:1; min-width:0}
+  .rec .meta .nm{font-weight:700; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .rec .meta .sm{color:var(--muted); font-size:12px; margin-top:2px}
+  .rec .badge{font-size:11px; padding:2px 7px; border-radius:999px; font-weight:700}
+  .badge.official{background:rgba(57,217,138,.15); color:var(--accent); border:1px solid rgba(57,217,138,.4)}
+  .badge.ref{background:rgba(139,152,169,.12); color:var(--muted); border:1px solid var(--line)}
+  .badge.copied{background:rgba(43,179,255,.14); color:var(--accent2); border:1px solid rgba(43,179,255,.4)}
+  .recacts{display:flex; gap:8px; margin-top:8px}
+  .recacts button{flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--fg);
+    border-radius:8px; padding:9px 6px; font-size:13px; font-weight:700}
+  .recacts button.copy{background:rgba(43,179,255,.14); border-color:rgba(43,179,255,.4); color:var(--accent2)}
+  .empty{color:var(--muted); font-size:13px; text-align:center; padding:18px 0}
+
+  /* ---------- BOARD モード（キオスク） ---------- */
+  body.board{background:radial-gradient(1400px 900px at 50% -5%, #0f2a39 0%, #07090d 60%); overflow:hidden}
+  .board-wrap{height:100vh; display:flex; flex-direction:column; padding:min(3vh,28px) min(4vw,48px)}
+  .board-head{display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap}
+  .board-title{font-size:clamp(22px,3.4vw,44px); font-weight:800; letter-spacing:.02em}
+  .board-title small{display:block; font-size:clamp(11px,1.2vw,15px); color:var(--muted); font-weight:500; letter-spacing:.14em; margin-bottom:4px}
+  .board-meta{text-align:right; color:var(--muted); font-size:clamp(11px,1.2vw,15px)}
+  .board-tabs{display:flex; gap:10px; margin:min(2.5vh,20px) 0; flex-wrap:wrap}
+  .board-tabs .tab{padding:8px 18px; border-radius:999px; border:1px solid var(--line);
+    background:var(--panel); color:var(--muted); font-size:clamp(13px,1.6vw,20px); font-weight:700}
+  .board-tabs .tab.on{background:linear-gradient(180deg,#2bb3ff,#1784c7); color:#021019; border-color:transparent}
+  .board-list{flex:1; display:flex; flex-direction:column; gap:min(1.4vh,12px); overflow:hidden}
+  .collabel{display:flex; gap:min(2vw,22px); padding:0 min(2.4vw,26px); color:var(--muted);
+    font-size:clamp(11px,1.2vw,15px); font-weight:600; letter-spacing:.04em}
+  .collabel .c-rank{min-width:1.6em; text-align:center}
+  .collabel .c-nm{flex:1}
+  .collabel .c-club{width:clamp(84px,11vw,170px)}
+  .collabel .c-cat{width:clamp(64px,7vw,110px)}
+  .collabel .c-dur{width:clamp(44px,5vw,80px); text-align:center}
+  .collabel .c-cnt{width:clamp(88px,10vw,150px); text-align:right}
+  .brow{display:flex; align-items:center; gap:min(2vw,22px); background:var(--panel);
+    border:1px solid var(--line); border-radius:16px; padding:min(1.5vh,15px) min(2.4vw,26px)}
+  .brow .rank{font-weight:800; font-size:clamp(22px,3.2vw,40px); min-width:1.6em; text-align:center; color:var(--muted)}
+  .brow.m1{background:linear-gradient(180deg,#2a2410,#1a1708); border-color:#6b5a1e}
+  .brow.m2{background:linear-gradient(180deg,#20242a,#14181d); border-color:#49566a}
+  .brow.m3{background:linear-gradient(180deg,#241a12,#17110b); border-color:#6b4a2a}
+  .brow.m1 .rank{color:var(--gold)} .brow.m2 .rank{color:var(--silver)} .brow.m3 .rank{color:var(--bronze)}
+  .brow .nm{flex:1; min-width:0; font-weight:800; font-size:clamp(18px,2.4vw,34px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .brow .club{width:clamp(84px,11vw,170px); color:var(--accent2); font-size:clamp(12px,1.4vw,19px); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .brow .cat{width:clamp(64px,7vw,110px); color:var(--muted); font-size:clamp(12px,1.4vw,19px); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .brow .dur{width:clamp(44px,5vw,80px); text-align:center; color:var(--muted); font-size:clamp(12px,1.4vw,19px); font-weight:600}
+  .brow .cnt{width:clamp(88px,10vw,150px); text-align:right; font-variant-numeric:tabular-nums; font-weight:800; font-size:clamp(23px,3.4vw,50px); color:var(--accent)}
+  .brow .cnt small{font-size:.45em; color:var(--muted); margin-left:4px; font-weight:600}
+  .board-foot{text-align:center; color:var(--muted); font-size:clamp(11px,1.2vw,15px); margin-top:min(2vh,16px)}
+  .board-switch{display:flex; align-items:center; gap:8px}
+  .board-switch button{background:var(--panel); border:1px solid var(--line); color:var(--fg); border-radius:999px; padding:6px 14px; font-size:13px}
+
+  .toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:#111820;
+    border:1px solid var(--line); color:var(--fg); padding:10px 16px; border-radius:12px; font-size:13px;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); opacity:0; transition:opacity .2s; pointer-events:none; z-index:50}
+  .toast.show{opacity:1}
+  .foot-links{margin-top:28px; color:var(--muted); font-size:12px; line-height:1.9}
+  .foot-links code{background:var(--panel2); padding:1px 6px; border-radius:6px}
+</style>
+</head>
+<body>
+
+<!-- ============ 上部タブ（記録 / ランキング） ============ -->
+<nav id="tabbar" class="tabbar hidden">
+  <a class="tab" data-mode="rank" href="?mode=rank">🏆 ランキング</a>
+  <a class="tab" data-mode="count" href="?mode=count">⏱ 記録</a>
+</nav>
+
+<!-- ============ ランディング＝ランキングページ ============ -->
+<section id="landing" class="wrap hidden">
+  <div class="brand">四国フレスコボール協会</div>
+  <h1>連続ラリー ランキング</h1>
+  <p class="lead">二人で続けた時間に、光を。<br>1分部門・5分部門で、連続ラリー数の記録をたたえる。</p>
+  <div class="rank-tabs part" id="partTabs"></div>
+  <div class="rank-tabs" id="catTabs"></div>
+  <div id="landingList"></div>
+  <div class="foot-links" id="landingFoot"></div>
+</section>
+
+<!-- ============ COUNT モード ============ -->
+<section id="count" class="hidden">
+  <div class="count-top">
+    <div class="row">
+      <div class="field"><label>選手1 クラブ</label><select id="club1"></select></div>
+      <div class="field" style="flex:2 1 200px"><label>選手1 名前</label>
+        <input id="name1" type="text" placeholder="例）藤田" autocomplete="off"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label>選手2 クラブ</label><select id="club2"></select></div>
+      <div class="field" style="flex:2 1 200px"><label>選手2 名前（ペアのとき）</label>
+        <input id="name2" type="text" placeholder="例）多田" autocomplete="off"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label>カテゴリ</label><select id="category"></select></div>
+      <div class="field"><label>制限時間</label><select id="duration"></select></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="field" style="flex:1 1 100%"><label>立会代表（公式記録の条件）</label><select id="witness"></select></div>
+    </div>
+  </div>
+
+  <div class="count-main">
+    <div class="timerbar" id="timer">--:--</div>
+    <div class="bignum" id="bignum">0</div>
+    <div class="sub" id="submsg">スタートを押して「タップ」で数える</div>
+  </div>
+
+  <button class="tap" id="tapBtn" disabled>タップ ＋1</button>
+
+  <div class="controls">
+    <button class="start" id="startBtn">スタート</button>
+    <button class="stop hidden" id="stopBtn">ストップ＆記録</button>
+    <button class="reset" id="resetBtn">リセット</button>
+  </div>
+
+  <div class="sound-row">
+    <select id="sound">
+      <option value="pico">ピコピコ</option>
+      <option value="marimba">マリンバ</option>
+      <option value="wood">和風拍子木</option>
+      <option value="pingpong">ピンポン</option>
+      <option value="drum">ドラム</option>
+      <option value="silent">無音</option>
+    </select>
+    <button id="previewBtn">🔊 試聴</button>
+  </div>
+
+  <div class="records">
+    <h2><span>この端末の本日の記録</span><span class="syncpill" id="syncPill">—</span></h2>
+    <p class="note"><b>1日の終わりに一度だけ</b>送信します。各記録を <b>−／＋で微調整</b> → 下の <b>①まとめてコピー</b> → <b>②送信フォーム</b>に貼り付けて1回送信してください。</p>
+    <button class="formbtn" id="batchCopyBtn" style="border:none; width:100%">📋 ① 本日分をまとめてコピー</button>
+    <a class="formbtn" id="formBtn" href="#" target="_blank" rel="noopener">✉️ ② 送信フォームを開く</a>
+    <div id="recList"></div>
+  </div>
+</section>
+
+<!-- ============ BOARD モード ============ -->
+<section id="board" class="hidden">
+  <div class="board-wrap">
+    <div class="board-head">
+      <div class="board-title"><small>SHIKOKU FRESCOBALL ＊ 連続ラリー</small>ランキング</div>
+      <div class="board-meta">
+        <div id="boardClock">--:--:--</div>
+        <div id="boardUpdated">更新待ち…</div>
+      </div>
+    </div>
+    <div class="board-tabs" id="boardTabs"></div>
+    <div class="collabel" id="colLabel"></div>
+    <div class="board-list" id="boardList"></div>
+    <div class="board-foot">
+      <div class="board-switch">
+        <button id="officialToggle">公式のみ：ON</button>
+        <span id="boardNote">15秒ごとに自動更新／タブは自動で切り替わります</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= 設定（ここだけ編集すればOK） ================= */
+const CONFIG = {
+  // ↓ GASをデプロイして得た /exec URL を貼る（空でも ?api= で上書き可）
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbxBxv8J73N0LKjPIvnJxWfRKs2mpIxHS_iV3iykFTI7jLSucdkrD5mAlJYV7ydGWXEP/exec',
+
+  // 所属クラブ（四国4県）
+  CLUBS: [
+    { code:'SFC',  label:'SFC（香川）' },
+    { code:'KFC',  label:'KFC（高知）' },
+    { code:'UFC',  label:'UFC（徳島）' },
+    { code:'SNFC', label:'SNFC（愛媛）' },
+  ],
+
+  // カテゴリ（キッズは初心者含め5mラリー＝表記「キッズ（5m）」）
+  CATEGORIES: ['男子', '女子', 'ミックス', 'キッズ（5m）'],
+
+  // 立会代表（official:true＝公式記録の立会資格あり）
+  WITNESSES: [
+    { label: 'SFC 藤田',  official: true },
+    { label: 'SFC 田村',  official: true },
+    { label: 'UFC 多田',  official: true },
+    { label: 'UFC 山本',  official: true },
+    { label: 'KFC 横川',  official: true },
+    { label: 'SNFC 藤田', official: true },
+    { label: '立会なし（参考記録）', official: false },
+  ],
+
+  // 時間部門は 1分 / 5分 の2つだけ（ランキングはこの2部門で分かれる）
+  DURATIONS: [ {s:60,label:'1分'},{s:300,label:'5分'} ],
+
+  // 送信フォーム（本日分をまとめて貼り付け → 1回送信）。「段落（長文）1項目」フォーム
+  FORM_URL: 'https://forms.gle/TD5WxuoXUa9yU4t67',
+  // true にすると記録時にGASへ自動送信（即ランキング反映）。本番は false＝終了時にまとめ送信
+  AUTO_SEND: false,
+
+  BOARD_REFRESH_MS: 15000,   // ランキング自動更新
+  BOARD_ROTATE_MS: 9000,     // タブ自動ローテーション
+  BOARD_TOP_N: 10,           // 表示件数
+};
+
+/* ================= ユーティリティ ================= */
+const $ = (id) => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+const API = qs.get('api') || CONFIG.GAS_URL;
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const CLUB_CODE = {}; CONFIG.CLUBS.forEach(c=>{ CLUB_CODE[c.label]=c.code; });
+function clubCode(label){ return CLUB_CODE[label] || label || ''; }
+// ペアの名前・クラブの表示用（クロスクラブ対応）
+function pairName(r){ return [r.name1, r.name2].filter(Boolean).join(' ／ '); }
+function pairClub(r){
+  const a=clubCode(r.club1), b=r.name2 ? clubCode(r.club2) : '';
+  if(!b || a===b) return a;
+  return a+' ／ '+b;
+}
+
+function toast(msg, ms=2200){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'), ms);
+}
+
+/* ---- GAS通信：JSONP（CORS回避）---- */
+function gasCall(params, cb){
+  if(!API){ cb && cb({ok:false, offline:true}); return; }
+  const name = 'cb_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
+  const s = document.createElement('script');
+  const q = new URLSearchParams(params); q.set('callback', name);
+  let done=false;
+  const finish=(data)=>{ if(done) return; done=true; try{delete window[name];}catch(e){} s.remove(); cb && cb(data); };
+  window[name]=(data)=>finish(data);
+  s.onerror=()=>finish({ok:false, error:'network'});
+  s.src = API + (API.includes('?')?'&':'?') + q.toString();
+  document.body.appendChild(s);
+  setTimeout(()=>finish({ok:false, error:'timeout'}), 12000);
+}
+
+/* ================= オーディオ（Web Audio） ================= */
+let AC=null;
+function ac(){ if(!AC){ AC=new (window.AudioContext||window.webkitAudioContext)(); } if(AC.state==='suspended') AC.resume(); return AC; }
+
+function playSound(type, step=0){
+  if(type==='silent') return;
+  const c=ac(), t=c.currentTime;
+  const semis=Math.min(step,12)*1.0;
+  const g=c.createGain(); g.connect(c.destination);
+  if(type==='pico'){
+    const o=c.createOscillator(); o.type='square'; o.frequency.value=600*Math.pow(2,semis/12);
+    o.connect(g); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.25,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.14); o.start(t); o.stop(t+0.16);
+  } else if(type==='marimba'){
+    const o=c.createOscillator(); o.type='sine'; o.frequency.value=440*Math.pow(2,semis/12);
+    const o2=c.createOscillator(); o2.type='triangle'; o2.frequency.value=o.frequency.value*2;
+    const g2=c.createGain(); g2.gain.value=0.3; o2.connect(g2); g2.connect(g); o.connect(g);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.4,t+0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.5); o.start(t); o2.start(t); o.stop(t+0.55); o2.stop(t+0.55);
+  } else if(type==='wood'){
+    for(let i=0;i<2;i++){ const tt=t+i*0.08;
+      const o=c.createOscillator(); o.type='triangle'; o.frequency.value=(900+semis*40)*(i?1.5:1);
+      const gg=c.createGain(); o.connect(gg); gg.connect(c.destination);
+      gg.gain.setValueAtTime(0.0001,tt); gg.gain.exponentialRampToValueAtTime(0.5,tt+0.002);
+      gg.gain.exponentialRampToValueAtTime(0.0001,tt+0.06); o.start(tt); o.stop(tt+0.08); }
+  } else if(type==='pingpong'){
+    [0,0.12].forEach((dt,i)=>{ const tt=t+dt;
+      const o=c.createOscillator(); o.type='sine'; o.frequency.value=(i?660:520)*Math.pow(2,semis/12);
+      const gg=c.createGain(); o.connect(gg); gg.connect(c.destination);
+      gg.gain.setValueAtTime(0.0001,tt); gg.gain.exponentialRampToValueAtTime(0.3,tt+0.008);
+      gg.gain.exponentialRampToValueAtTime(0.0001,tt+0.18); o.start(tt); o.stop(tt+0.2); });
+  } else if(type==='drum'){
+    const o=c.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(180+semis*10,t); o.frequency.exponentialRampToValueAtTime(50,t+0.18);
+    o.connect(g); g.gain.setValueAtTime(0.6,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.25);
+    o.start(t); o.stop(t+0.28);
+    const n=c.createBuffer(1, c.sampleRate*0.1, c.sampleRate); const d=n.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
+    const src=c.createBufferSource(); src.buffer=n; const ng=c.createGain(); ng.gain.value=0.25;
+    src.connect(ng); ng.connect(c.destination); src.start(t);
+  }
+}
+function tick(type){
+  if(type==='silent') return;
+  const c=ac(), t=c.currentTime;
+  const o=c.createOscillator(); const g=c.createGain();
+  o.type = type==='drum'?'triangle':'sine'; o.frequency.value = type==='wood'?1200:880;
+  o.connect(g); g.connect(c.destination);
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.12,t+0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+0.05); o.start(t); o.stop(t+0.06);
+}
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  try{
+    const u=new SpeechSynthesisUtterance(text); u.lang='ja-JP'; u.rate=1.05; u.pitch=1.1; u.volume=1;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }catch(e){}
+}
+function milestonePhrase(n){
+  const map={10:'10回連続！いいね！',20:'20回！リズムに乗ってきた！',30:'30回連続！すごい！',
+    40:'40回！集中！',50:'50回連続！会場が沸いてる！',70:'70回！伝説級！',100:'100回連続！歴史的ラリー！'};
+  return map[n] || (n+'回連続！');
+}
+
+/* ================= COUNT モード ================= */
+const Count = (()=>{
+  let count=0, running=false, remain=0, timerId=null, endAt=0;
+  const LS='rc_records';
+
+  function fillSelects(){
+    const clubOpts = CONFIG.CLUBS.map(c=>`<option value="${c.label}">${c.label}</option>`).join('');
+    $('club1').innerHTML = clubOpts; $('club2').innerHTML = clubOpts;
+    $('category').innerHTML = CONFIG.CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('');
+    $('witness').innerHTML = CONFIG.WITNESSES.map((w,i)=>`<option value="${i}">${w.label}</option>`).join('');
+    $('duration').innerHTML = CONFIG.DURATIONS.map(d=>`<option value="${d.s}">${d.label}</option>`).join('');
+    $('duration').value='60';
+  }
+  function witnessObj(){ return CONFIG.WITNESSES[Number($('witness').value)] || CONFIG.WITNESSES[0]; }
+  function fmt(s){ s=Math.max(0,Math.ceil(s)); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+  function durMin(){ return Math.round(Number($('duration').value)/60); }
+
+  function render(){
+    const el=$('bignum'); el.textContent=count; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  }
+  function tickTimer(){ remain=(endAt-Date.now())/1000; $('timer').textContent=fmt(remain); if(remain<=0){ stop(true); } }
+  function start(){
+    ac(); count=0; render(); running=true;
+    remain=Number($('duration').value); endAt=Date.now()+remain*1000;
+    $('startBtn').classList.add('hidden'); $('stopBtn').classList.remove('hidden');
+    $('tapBtn').disabled=false; $('submsg').textContent='続いている間、落とさず打ったらタップ！';
+    clearInterval(timerId); timerId=setInterval(tickTimer,200); tickTimer();
+  }
+  function stop(auto){
+    if(!running){ return; }
+    running=false; clearInterval(timerId); $('tapBtn').disabled=true;
+    $('startBtn').classList.remove('hidden'); $('stopBtn').classList.add('hidden');
+    $('timer').textContent=fmt(0);
+    if(count>0){ saveRecord(); $('submsg').textContent=`記録しました：${count}回連続！　本日分は終了時にまとめて送信します`; }
+    else { $('submsg').textContent='0回のため記録しません'; }
+  }
+  function reset(){
+    running=false; clearInterval(timerId); count=0; render();
+    $('tapBtn').disabled=true; $('startBtn').classList.remove('hidden'); $('stopBtn').classList.add('hidden');
+    $('timer').textContent='--:--'; $('submsg').textContent='スタートを押して「タップ」で数える';
+  }
+  function tap(){
+    if(!running) return;
+    count++; render();
+    const snd=$('sound').value;
+    if(count%10===0){ playSound(snd, count/10); speak(milestonePhrase(count)); $('submsg').textContent=milestonePhrase(count); }
+    else { tick(snd); }
+    if(navigator.vibrate) navigator.vibrate(count%10===0?60:12);
+  }
+
+  function load(){ try{ return JSON.parse(localStorage.getItem(LS)||'[]'); }catch(e){ return []; } }
+  function save(arr){ localStorage.setItem(LS, JSON.stringify(arr)); }
+  function saveRecord(){
+    const w=witnessObj();
+    const rec={ id:'r'+Date.now(), time:new Date().toISOString(),
+      club1:$('club1').value, name1:($('name1').value||'（名称未入力）').trim(),
+      club2:$('club2').value, name2:($('name2').value||'').trim(),
+      category:$('category').value, durMin:durMin(), count, witness:w.label,
+      status: w.official?'公式':'参考', synced:false };
+    const arr=load(); arr.unshift(rec); save(arr); renderList();
+    if(CONFIG.AUTO_SEND) sync(rec); else updatePill();
+  }
+  // コピー用の1行（フォームに貼り付け → GASが '|' で分解）
+  function copyLine(r){
+    return [r.time, r.club1, r.name1, r.club2||'', r.name2||'', r.category, r.durMin, r.count, r.witness, r.status].join(' | ');
+  }
+  // 本日分をまとめてコピー（改行区切り）→ 送信フォーム「段落」1項目に貼り付けて1回送信
+  function copyAll(){
+    const arr=load();
+    if(!arr.length){ toast('記録がありません'); return; }
+    // 古い順（上から時系列）で1行ずつ。GAS側が改行＋'|'で分解する
+    const text = arr.slice().reverse().map(copyLine).join('\n');
+    const done=()=>{ const a=load(); a.forEach(r=>r.copied=true); save(a); renderList();
+      toast(`本日分 ${arr.length}件 をコピーしました。送信フォームに貼り付けて1回送信してください`); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(()=>{ window.prompt('コピー（⌘C / Ctrl+C）してフォームに貼り付け', text); done(); });
+    } else { window.prompt('コピー（⌘C / Ctrl+C）してフォームに貼り付け', text); done(); }
+  }
+  function markCopied(id){ const arr=load(); const r=arr.find(x=>x.id===id); if(r){ r.copied=true; save(arr); renderList(); } }
+  function adjust(id, delta){
+    const arr=load(); const r=arr.find(x=>x.id===id); if(!r) return;
+    r.count=Math.max(0, (Number(r.count)||0)+delta); r.copied=false; r.synced=false;
+    save(arr); renderList(); updatePill();
+  }
+  function params(rec){ return {action:'add', time:rec.time,
+    club1:rec.club1, name1:rec.name1, club2:rec.club2, name2:rec.name2,
+    category:rec.category, durMin:rec.durMin, count:rec.count, witness:rec.witness, status:rec.status}; }
+  function sync(rec){
+    updatePill('送信中…');
+    gasCall(params(rec), (res)=>{
+      if(res && res.ok){ mark(rec.id,true); toast('中央台帳に送信しました'); }
+      else if(res && res.error==='rejected'){ toast('送信が拒否されました（回数/文字数の上限）'); }
+      else { toast(res&&res.offline?'未設定のためローカル保存のみ':'送信失敗。後で自動再送します'); }
+      renderList(); updatePill();
+    });
+  }
+  function mark(id,ok){ const arr=load(); const r=arr.find(x=>x.id===id); if(r){ r.synced=ok; save(arr); } }
+  function resendAll(){
+    if(!CONFIG.AUTO_SEND || !API) return;
+    const pend=load().filter(r=>!r.synced);
+    if(!pend.length){ updatePill(); return; }
+    updatePill('再送中…'); let i=0;
+    (function next(){
+      if(i>=pend.length){ renderList(); updatePill(); return; }
+      const rec=pend[i++];
+      gasCall(params(rec), (res)=>{ if(res&&res.ok) mark(rec.id,true); setTimeout(next,400); });
+    })();
+  }
+  function updatePill(txt){
+    const pill=$('syncPill');
+    if(txt){ pill.textContent=txt; return; }
+    if(CONFIG.AUTO_SEND){
+      if(!API){ pill.textContent='中央台帳：未設定'; return; }
+      const pend=load().filter(r=>!r.synced).length;
+      pill.textContent = pend? `未送信 ${pend}件`:'中央台帳：同期済';
+      return;
+    }
+    pill.textContent = `記録 ${load().length}件`;
+  }
+
+  function renderList(){
+    const arr=load(); const box=$('recList');
+    if(!arr.length){ box.innerHTML='<div class="empty">まだ記録はありません</div>'; return; }
+    box.innerHTML = arr.map(r=>{
+      const badge = r.status==='公式' ? '<span class="badge official">公式</span>' : '<span class="badge ref">参考</span>';
+      const copied = r.copied? '<span class="badge copied">コピー済</span>' : '';
+      const d=new Date(r.time); const hm=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      return `<div class="rec" data-id="${r.id}">
+        <div class="recline">
+          <button class="adj" data-act="dec">−</button>
+          <div class="cnt">${r.count}</div>
+          <button class="adj" data-act="inc">＋</button>
+          <div class="meta"><div class="nm">${esc(pairName(r))} ${badge} ${copied}</div>
+            <div class="sm">${esc(pairClub(r))}・${esc(r.category||'')}・${r.durMin}分・立会：${esc(r.witness)}・${hm}</div></div>
+        </div>
+        <div class="recacts">
+          <button data-act="edit">✏️ 修正</button>
+          <button data-act="del">🗑 削除</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function onListClick(e){
+    const btn=e.target.closest('button'); if(!btn) return;
+    const id=e.target.closest('.rec').dataset.id; const arr=load(); const r=arr.find(x=>x.id===id); if(!r) return;
+    if(btn.dataset.act==='dec'){ adjust(id,-1); return; }
+    if(btn.dataset.act==='inc'){ adjust(id,+1); return; }
+    if(btn.dataset.act==='del'){
+      if(confirm(`${pairName(r)} ${r.count}回 を削除しますか？（この端末の表示から消えます）`)){
+        save(arr.filter(x=>x.id!==id)); renderList(); updatePill();
+      }
+    } else if(btn.dataset.act==='edit'){
+      const clubHint='（'+CONFIG.CLUBS.map(c=>c.label).join(' / ')+'）';
+      const nc=prompt('連続回数', r.count); if(nc===null) return;
+      const nn1=prompt('選手1 名前', r.name1); if(nn1===null) return;
+      const ncl1=prompt('選手1 クラブ'+clubHint, r.club1); if(ncl1===null) return;
+      const nn2=prompt('選手2 名前（ペアのとき）', r.name2||''); if(nn2===null) return;
+      const ncl2=prompt('選手2 クラブ'+clubHint, r.club2||r.club1); if(ncl2===null) return;
+      const ncat=prompt('カテゴリ（'+CONFIG.CATEGORIES.join(' / ')+'）', r.category||''); if(ncat===null) return;
+      r.count=Number(nc)||r.count;
+      r.name1=nn1.trim()||r.name1; r.club1=ncl1.trim()||r.club1;
+      r.name2=nn2.trim(); r.club2=ncl2.trim()||r.club2;
+      r.category=ncat.trim()||r.category;
+      r.synced=false; save(arr); renderList(); updatePill();
+      toast('修正しました。「未送信」は次回の自動再送で中央台帳へ');
+    }
+  }
+
+  function init(){
+    fillSelects(); renderList(); updatePill();
+    if(CONFIG.FORM_URL){ $('formBtn').href=CONFIG.FORM_URL; } else { $('formBtn').classList.add('hidden'); }
+    $('batchCopyBtn').addEventListener('click', copyAll);
+    $('tapBtn').addEventListener('click', tap);
+    $('startBtn').addEventListener('click', start);
+    $('stopBtn').addEventListener('click', ()=>stop(false));
+    $('resetBtn').addEventListener('click', reset);
+    $('previewBtn').addEventListener('click', ()=>{ ac(); playSound($('sound').value, 3); });
+    $('recList').addEventListener('click', onListClick);
+    window.addEventListener('keydown', (e)=>{ if(running && (e.code==='Space'||e.code==='Enter')){ e.preventDefault(); tap(); } });
+    resendAll(); setInterval(resendAll, 30000);
+  }
+  return { init };
+})();
+
+/* ================= BOARD モード ================= */
+const Board = (()=>{
+  let records=[], tabs=[], tabIdx=0, officialOnly=true, rotateId=null;
+
+  function buildTabs(){
+    tabs = [{key:'総合', short:'総合', kind:'all'}];
+    CONFIG.CATEGORIES.forEach(c=>tabs.push({key:c, short:c, kind:'cat'}));
+    tabs.push({key:'クラブ別', short:'クラブ別', kind:'club'});
+  }
+  function renderTabs(){
+    $('boardTabs').innerHTML = tabs.map((t,i)=>`<div class="tab ${i===tabIdx?'on':''}" data-i="${i}">${esc(t.short)}</div>`).join('');
+  }
+  function cur(){ return tabs[tabIdx]; }
+  function base(){ return officialOnly ? records.filter(r=>r.status==='公式') : records.slice(); }
+
+  function ranked(){
+    let rs=base();
+    if(cur().kind==='cat') rs=rs.filter(r=>r.category===cur().key);
+    rs.sort((a,b)=> b.count-a.count || new Date(a.time)-new Date(b.time));
+    return rs.slice(0, CONFIG.BOARD_TOP_N);
+  }
+  function clubStats(){
+    const rs=base();
+    return CONFIG.CLUBS.map(c=>{
+      // クロスクラブのペアは両クラブの「取り組み」としてカウント
+      const mine=rs.filter(r=> r.club1===c.label || (r.name2 && r.club2===c.label));
+      const names=new Set();
+      mine.forEach(r=>{ if(r.club1===c.label && r.name1) names.add(r.name1);
+        if(r.name2 && r.club2===c.label) names.add(r.name2); });
+      const best=mine.reduce((m,r)=>Math.max(m,r.count),0);
+      return { label:c.label, records:mine.length, players:names.size, best };
+    }).sort((a,b)=> b.best-a.best || b.records-a.records);
+  }
+
+  function setColLabel(){
+    const el=$('colLabel');
+    if(cur().kind==='club'){ el.innerHTML=''; return; }
+    el.innerHTML = `<span class="c-rank">#</span><span class="c-nm">名前</span>`
+      + `<span class="c-club">所属クラブ</span>`
+      + (cur().kind==='cat' ? `<span class="c-cat"></span>` : `<span class="c-cat">カテゴリ</span>`)
+      + `<span class="c-dur">時間</span><span class="c-cnt">連続回数</span>`;
+  }
+
+  function renderList(){
+    setColLabel();
+    const box=$('boardList');
+    if(cur().kind==='club'){
+      const st=clubStats();
+      box.innerHTML = st.map((s,i)=>{
+        const m=i<3?`m${i+1}`:''; const medal=['🥇','🥈','🥉'][i]||'';
+        return `<div class="brow ${m}">
+          <div class="rank">${medal||(i+1)}</div>
+          <div class="nm">${esc(s.label)}</div>
+          <span class="club" style="width:auto;flex:0 0 auto;color:var(--muted)">参加 ${s.players}名 ・ 記録 ${s.records}件</span>
+          <div class="cnt" style="width:auto;flex:0 0 auto;white-space:nowrap"><small style="margin:0 6px 0 0">最高</small>${s.best}<small>回</small></div>
+        </div>`;
+      }).join('');
+      return;
+    }
+    const rs=ranked();
+    if(!rs.length){ box.innerHTML='<div class="empty" style="font-size:clamp(14px,2vw,22px);padding:8vh 0">まだ記録がありません</div>'; return; }
+    box.innerHTML = rs.map((r,i)=>{
+      const m=i<3?`m${i+1}`:''; const medal=['🥇','🥈','🥉'][i]||'';
+      const catCell = cur().kind==='cat' ? `<span class="cat"></span>` : `<span class="cat">${esc(r.category||'')}</span>`;
+      return `<div class="brow ${m}">
+        <div class="rank">${medal||(i+1)}</div>
+        <div class="nm">${esc(pairName(r))}</div>
+        <span class="club">${esc(pairClub(r))}</span>
+        ${catCell}
+        <span class="dur">${r.durMin}分</span>
+        <div class="cnt">${r.count}<small>回</small></div>
+      </div>`;
+    }).join('');
+  }
+
+  function refresh(){
+    gasCall({action:'list'}, (res)=>{
+      if(res && res.ok && Array.isArray(res.records)){
+        records=res.records.map(r=>({ time:r.time, club1:r.club1||'', name1:r.name1||'', club2:r.club2||'', name2:r.name2||'', category:r.category||'', durMin:Number(r.durMin)||0, count:Number(r.count)||0, status:r.status||'参考' }));
+        const n=new Date();
+        $('boardUpdated').textContent='更新 '+[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+        renderList();
+      } else if(res && res.offline){ $('boardUpdated').textContent='中央台帳URL未設定（?api= で指定）'; }
+      else { $('boardUpdated').textContent='更新に失敗（次回再試行）'; }
+    });
+  }
+  function rotate(){ tabIdx=(tabIdx+1)%tabs.length; renderTabs(); renderList(); }
+  function clock(){ const n=new Date(); $('boardClock').textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':'); }
+
+  function init(){
+    document.body.classList.add('board');
+    buildTabs(); renderTabs(); renderList();
+    $('boardTabs').addEventListener('click',(e)=>{ const t=e.target.closest('.tab'); if(!t) return;
+      tabIdx=Number(t.dataset.i); renderTabs(); renderList();
+      clearInterval(rotateId); rotateId=setInterval(rotate, CONFIG.BOARD_ROTATE_MS); });
+    $('officialToggle').addEventListener('click',()=>{ officialOnly=!officialOnly;
+      $('officialToggle').textContent='公式のみ：'+(officialOnly?'ON':'OFF'); renderList(); });
+    clock(); setInterval(clock,1000);
+    refresh(); setInterval(refresh, CONFIG.BOARD_REFRESH_MS);
+    rotateId=setInterval(rotate, CONFIG.BOARD_ROTATE_MS);
+  }
+  return { init };
+})();
+
+/* ================= 入口ランキング（Landing） ================= */
+const Landing = (()=>{
+  let records=[], part=1, cat='総合', officialOnly=true, loaded=false;
+
+  function buildTabs(){
+    $('partTabs').innerHTML = [[1,'1分部門'],[5,'5分部門']]
+      .map(([v,l])=>`<div class="tab ${v===part?'on':''}" data-v="${v}">${l}</div>`).join('');
+    const cats=['総合', ...CONFIG.CATEGORIES];
+    $('catTabs').innerHTML = cats
+      .map(c=>`<div class="tab ${c===cat?'on':''}" data-c="${esc(c)}">${esc(c)}</div>`).join('');
+  }
+  function ranked(){
+    let rs = officialOnly ? records.filter(r=>r.status==='公式') : records.slice();
+    rs = rs.filter(r=> Number(r.durMin)===part);
+    if(cat!=='総合') rs = rs.filter(r=> r.category===cat);
+    rs.sort((a,b)=> b.count-a.count || new Date(a.time)-new Date(b.time));
+    return rs;
+  }
+  function render(){
+    buildTabs();
+    const box=$('landingList');
+    if(!API){ box.innerHTML='<div class="empty">中央台帳URL未設定です（<code>?api=（/exec URL）</code> で指定 or CONFIG.GAS_URL に設定）</div>'; return; }
+    if(!loaded){ box.innerHTML='<div class="empty">読み込み中…</div>'; return; }
+    const rs=ranked();
+    if(!rs.length){ box.innerHTML='<div class="empty">この部門の記録はまだありません</div>'; return; }
+    box.innerHTML = rs.slice(0,50).map((r,i)=>{
+      const m=i<3?`m${i+1}`:''; const medal=['🥇','🥈','🥉'][i]||'';
+      return `<div class="lrow ${m}">
+        <div class="lrank">${medal||(i+1)}</div>
+        <div class="lmeta">
+          <div class="lnm">${esc(pairName(r))}</div>
+          <div class="lsm">${esc(pairClub(r))}・${esc(r.category||'')}</div>
+        </div>
+        <div class="lcnt">${r.count}<small>回</small></div>
+      </div>`;
+    }).join('');
+  }
+  function refresh(){
+    gasCall({action:'list'}, (res)=>{
+      if(res && res.ok && Array.isArray(res.records)){
+        records=res.records.map(r=>({ time:r.time, club1:r.club1||'', name1:r.name1||'', club2:r.club2||'', name2:r.name2||'', category:r.category||'', durMin:Number(r.durMin)||0, count:Number(r.count)||0, status:r.status||'参考' }));
+        loaded=true;
+      }
+      render();
+    });
+  }
+  function init(){
+    render();
+    $('partTabs').addEventListener('click',e=>{ const t=e.target.closest('.tab'); if(!t) return; part=Number(t.dataset.v); render(); });
+    $('catTabs').addEventListener('click',e=>{ const t=e.target.closest('.tab'); if(!t) return; cat=t.dataset.c; render(); });
+    $('landingFoot').innerHTML='記録用URL：<code>?mode=count</code>／大画面ランキング：<code>?mode=board</code>　※ランキングは各自の「本日分まとめ送信」後に反映されます';
+    refresh(); setInterval(refresh, 30000);
+  }
+  return { init };
+})();
+
+/* ================= ルーティング ================= */
+function showTabbar(active){
+  const bar=$('tabbar'); bar.classList.remove('hidden');
+  bar.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.mode===active));
+}
+(function main(){
+  const mode = qs.get('mode');
+  if(mode==='count'){ showTabbar('count'); $('count').classList.remove('hidden'); Count.init(); }
+  else if(mode==='board'){ $('board').classList.remove('hidden'); Board.init(); }
+  else { showTabbar('rank'); $('landing').classList.remove('hidden'); Landing.init(); }
+})();
+</script>
+</body>
+</html>
