@@ -75,11 +75,15 @@
   .bignum.flash{animation:pop .22s ease}
   @keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
   .sub{color:var(--muted); font-size:13px; min-height:20px}
+  .bestline{color:var(--gold); font-size:15px; font-weight:800; min-height:20px; margin-top:2px; font-variant-numeric:tabular-nums}
   .tap{margin:14px 16px 10px; height:160px; border-radius:22px; border:none;
     background:linear-gradient(180deg,#2fbf79,#1f8f5a); color:#06160e; font-size:26px; font-weight:800;
     box-shadow:0 10px 30px rgba(31,143,90,.35); width:calc(100% - 32px)}
   .tap:active{transform:translateY(2px); filter:brightness(.95)}
   .tap[disabled]{opacity:.45}
+  .tap.drop{margin-top:0; height:118px; font-size:22px;
+    background:linear-gradient(180deg,#ff6b6b,#d94545); color:#200606;
+    box-shadow:0 8px 24px rgba(217,69,69,.32)}
   .controls{display:flex; gap:10px; padding:0 16px 10px}
   .controls button{flex:1; padding:14px; border-radius:12px; border:1px solid var(--line);
     background:var(--panel2); color:var(--fg); font-size:15px; font-weight:700}
@@ -207,9 +211,11 @@
     <div class="timerbar" id="timer">--:--</div>
     <div class="bignum" id="bignum">0</div>
     <div class="sub" id="submsg">スタートを押して「タップ」で数える</div>
+    <div class="bestline" id="bestline"></div>
   </div>
 
   <button class="tap" id="tapBtn" disabled>タップ ＋1</button>
+  <button class="tap drop hidden" id="dropBtn">落とした ＋1（0に戻す）</button>
 
   <div class="controls">
     <button class="start" id="startBtn">スタート</button>
@@ -228,6 +234,12 @@
     </select>
     <button id="previewBtn">🔊 試聴</button>
   </div>
+
+  <div class="sound-row">
+    <select id="voice"><option value="none">なし（読み上げオフ）</option></select>
+    <button id="voicePreviewBtn">🗣 声を試す</button>
+  </div>
+  <p class="note" style="padding:0 16px 10px">掛け声の読み上げ。「なし」でオフ。もっと自然にしたい時は端末の設定でSiri／拡張の日本語音声を追加すると声が選べます。</p>
 
   <div class="records">
     <h2><span>この端末の本日の記録</span><span class="syncpill" id="syncPill">—</span></h2>
@@ -274,6 +286,7 @@ const CONFIG = {
     { code:'KFC',  label:'KFC（高知）' },
     { code:'UFC',  label:'UFC（徳島）' },
     { code:'SNFC', label:'SNFC（愛媛）' },
+    { code:'その他', label:'その他' },
   ],
 
   // カテゴリ（キッズは初心者含め5mラリー＝表記「キッズ（5m）」）
@@ -389,22 +402,53 @@ function tick(type){
   g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.12,t+0.004);
   g.gain.exponentialRampToValueAtTime(0.0001,t+0.05); o.start(t); o.stop(t+0.06);
 }
+/* ---- 読み上げ（声）：端末の日本語音声から選択。'none'＝読み上げオフ ---- */
+let voiceName = localStorage.getItem('rc_voice') || 'none';
+function jaVoices(){
+  if(!('speechSynthesis' in window)) return [];
+  return (speechSynthesis.getVoices()||[]).filter(v=>/ja(-|_)?JP|Japanese|日本/i.test(v.lang+' '+v.name) || /^ja\b/i.test(v.lang));
+}
+function fillVoiceSelect(){
+  const sel=$('voice'); if(!sel) return;
+  const vs=jaVoices();
+  sel.innerHTML='<option value="none">なし（読み上げオフ）</option>'
+    + vs.map(v=>`<option value="${esc(v.name)}">${esc(v.name)}</option>`).join('');
+  // 保存済みの声が端末にあれば復元、なければ none
+  sel.value = voiceName;
+  if(sel.value!==voiceName){ voiceName='none'; sel.value='none'; }
+}
 function speak(text){
-  if(!('speechSynthesis' in window)) return;
+  if(voiceName==='none' || !('speechSynthesis' in window)) return;
   try{
-    const u=new SpeechSynthesisUtterance(text); u.lang='ja-JP'; u.rate=1.05; u.pitch=1.1; u.volume=1;
+    const u=new SpeechSynthesisUtterance(text); u.lang='ja-JP'; u.rate=1.05; u.pitch=1.05; u.volume=1;
+    const v=(speechSynthesis.getVoices()||[]).find(x=>x.name===voiceName);
+    if(v) u.voice=v;
     speechSynthesis.cancel(); speechSynthesis.speak(u);
   }catch(e){}
 }
+// 10回ごとの掛け声。各節目5パターンから毎回ランダム。100超は〇〇に回数を入れたレジェンド枠。
+const MILESTONES={
+  10:['10回！まだ準備運動です！','10回！エンジン、今かかりました！','10回！挨拶がわりの10回！','10回！ここからが本番ですよ〜！','10回！指ならし完了！'],
+  20:['20回！そろそろ本気、出しときます？','20回！リズム、乗ってきましたね！','20回！ボールがなつき始めました！','20回！ふたりの息、ぴったり！','20回！まだ笑顔の余裕アリ！'],
+  30:['30回！腕が絶好調にバグり中！','30回！止まる気配、ゼロ！','30回！ラケットが喜んでます！','30回！観客、拍手の準備を！','30回！ここで一回、深呼吸！'],
+  40:['40回！もう止まり方を忘れました！','40回！集中力フルスロットル！','40回！ボール、落ちる気ゼロ！','40回！二人三脚ならぬ二人四十脚！','40回！汗が輝いてきました！'],
+  50:['50回！半世紀ラリー、かんぱーい！','50回！ちょうど折り返し…何の！？','50回！会場の視線、独り占め！','50回！記録、見えてきましたよ！','50回！水分補給…まだムリか！'],
+  60:['60回！ボールと恋人つなぎ中！','60回！腕、もう一本生えそう！','60回！呼吸ぴったり、いい感じ！','60回！まだ落とさない、さすが！','60回！ここからは意地ですね！'],
+  70:['70回！腕の保証期間ギリギリ！','70回！伝説の足音、聞こえます！','70回！この二人、何者ですか！','70回！観客の心拍数も上昇中！','70回！指先が職人技に！'],
+  80:['80回！水分補給のチャンス…ない！','80回！もはや儀式の域です！','80回！ボール、宙に住んでます！','80回！拍手が止まりません！','80回！大台まであと一歩！'],
+  90:['90回！大台目前、息してます？','90回！カウント係の私も緊張！','90回！ここで落としたら名場面！','90回！二人の絆、強度MAX！','90回！あと10、あと10です！'],
+  100:['100回！ラケットに表彰状を！','100回！歴史的ラリー、達成！','100回！三桁クラブ、ようこそ！','100回！もう語り継がれますこれ！','100回！拍手！拍手！大拍手！'],
+};
+const LEGEND=['〇〇回！もう仙人の域です！','〇〇回！誰か止めてあげて（笑）！','〇〇回！記録、更新しすぎ問題！','〇〇回！その腕、永久機関では！？','〇〇回！伝説は続くよどこまでも！'];
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 function milestonePhrase(n){
-  const map={10:'10回連続！いいね！',20:'20回！リズムに乗ってきた！',30:'30回連続！すごい！',
-    40:'40回！集中！',50:'50回連続！会場が沸いてる！',70:'70回！伝説級！',100:'100回連続！歴史的ラリー！'};
-  return map[n] || (n+'回連続！');
+  if(MILESTONES[n]) return pick(MILESTONES[n]);
+  return pick(LEGEND).replace('〇〇', n);
 }
 
 /* ================= COUNT モード ================= */
 const Count = (()=>{
-  let count=0, running=false, remain=0, timerId=null, endAt=0;
+  let count=0, best=0, drops=0, hits=0, running=false, remain=0, timerId=null, endAt=0;
   const LS='rc_records';
 
   function fillSelects(){
@@ -422,51 +466,60 @@ const Count = (()=>{
   function render(){
     const el=$('bignum'); el.textContent=count; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
   }
+  function renderBest(){ $('bestline').textContent = (best>0||drops>0||hits>0) ? `ベスト ${best}回 ・ 総打数 ${hits} ・ 落球 ${drops}` : ''; }
   function tickTimer(){ remain=(endAt-Date.now())/1000; $('timer').textContent=fmt(remain); if(remain<=0){ stop(true); } }
   function start(){
-    ac(); count=0; render(); running=true;
+    ac(); count=0; best=0; drops=0; hits=0; render(); renderBest(); running=true;
     remain=Number($('duration').value); endAt=Date.now()+remain*1000;
-    $('startBtn').classList.add('hidden'); $('stopBtn').classList.remove('hidden');
-    $('tapBtn').disabled=false; $('submsg').textContent='続いている間、落とさず打ったらタップ！';
+    $('startBtn').classList.add('hidden'); $('dropBtn').classList.remove('hidden'); $('stopBtn').classList.remove('hidden');
+    $('tapBtn').disabled=false; $('submsg').textContent='続いている間タップ！落としたら「0に戻す」で次のラリー';
     clearInterval(timerId); timerId=setInterval(tickTimer,200); tickTimer();
+  }
+  // ラリーが途切れた（＝落とした）：連続回数だけ0に戻し、タイマーは継続。ベストはtapで更新済み
+  function drop(){
+    if(!running) return;
+    drops++; count=0; render(); renderBest();
+    const snd=$('sound').value; tick(snd);
+    if(navigator.vibrate) navigator.vibrate(30);
+    $('submsg').textContent = best>0 ? `リスタート！ベスト${best}回の更新を狙おう（落球${drops}）` : 'リスタート！もう一度いこう';
   }
   function stop(auto){
     if(!running){ return; }
     running=false; clearInterval(timerId); $('tapBtn').disabled=true;
-    $('startBtn').classList.remove('hidden'); $('stopBtn').classList.add('hidden');
+    $('startBtn').classList.remove('hidden'); $('dropBtn').classList.add('hidden'); $('stopBtn').classList.add('hidden');
     $('timer').textContent=fmt(0);
-    if(count>0){ saveRecord(); $('submsg').textContent=`記録しました：${count}回連続！　本日分は終了時にまとめて送信します`; }
+    if(best>0){ saveRecord(best); $('submsg').textContent=`記録しました：ベスト ${best}回連続！　本日分は終了時にまとめて送信します`; }
     else { $('submsg').textContent='0回のため記録しません'; }
   }
   function reset(){
-    running=false; clearInterval(timerId); count=0; render();
-    $('tapBtn').disabled=true; $('startBtn').classList.remove('hidden'); $('stopBtn').classList.add('hidden');
+    running=false; clearInterval(timerId); count=0; best=0; drops=0; hits=0; render(); renderBest();
+    $('tapBtn').disabled=true; $('startBtn').classList.remove('hidden'); $('dropBtn').classList.add('hidden'); $('stopBtn').classList.add('hidden');
     $('timer').textContent='--:--'; $('submsg').textContent='スタートを押して「タップ」で数える';
   }
   function tap(){
     if(!running) return;
-    count++; render();
+    count++; hits++; if(count>best) best=count; render(); renderBest();
     const snd=$('sound').value;
-    if(count%10===0){ playSound(snd, count/10); speak(milestonePhrase(count)); $('submsg').textContent=milestonePhrase(count); }
+    if(count%10===0){ const ph=milestonePhrase(count); playSound(snd, count/10); speak(ph); $('submsg').textContent=ph; }
     else { tick(snd); }
     if(navigator.vibrate) navigator.vibrate(count%10===0?60:12);
   }
 
   function load(){ try{ return JSON.parse(localStorage.getItem(LS)||'[]'); }catch(e){ return []; } }
   function save(arr){ localStorage.setItem(LS, JSON.stringify(arr)); }
-  function saveRecord(){
+  function saveRecord(value){
     const w=witnessObj();
     const rec={ id:'r'+Date.now(), time:new Date().toISOString(),
       club1:$('club1').value, name1:($('name1').value||'（名称未入力）').trim(),
       club2:$('club2').value, name2:($('name2').value||'').trim(),
-      category:$('category').value, durMin:durMin(), count, witness:w.label,
+      category:$('category').value, durMin:durMin(), count:value, drops:drops, hits:hits, witness:w.label,
       status: w.official?'公式':'参考', synced:false };
     const arr=load(); arr.unshift(rec); save(arr); renderList();
     if(CONFIG.AUTO_SEND) sync(rec); else updatePill();
   }
   // コピー用の1行（フォームに貼り付け → GASが '|' で分解）
   function copyLine(r){
-    return [r.time, r.club1, r.name1, r.club2||'', r.name2||'', r.category, r.durMin, r.count, r.witness, r.status].join(' | ');
+    return [r.time, r.club1, r.name1, r.club2||'', r.name2||'', r.category, r.durMin, r.count, r.witness, r.status, (r.drops||0), (r.hits||0)].join(' | ');
   }
   // 本日分をまとめてコピー（改行区切り）→ 送信フォーム「段落」1項目に貼り付けて1回送信
   function copyAll(){
@@ -488,7 +541,7 @@ const Count = (()=>{
   }
   function params(rec){ return {action:'add', time:rec.time,
     club1:rec.club1, name1:rec.name1, club2:rec.club2, name2:rec.name2,
-    category:rec.category, durMin:rec.durMin, count:rec.count, witness:rec.witness, status:rec.status}; }
+    category:rec.category, durMin:rec.durMin, count:rec.count, drops:(rec.drops||0), hits:(rec.hits||0), witness:rec.witness, status:rec.status}; }
   function sync(rec){
     updatePill('送信中…');
     gasCall(params(rec), (res)=>{
@@ -535,7 +588,7 @@ const Count = (()=>{
           <div class="cnt">${r.count}</div>
           <button class="adj" data-act="inc">＋</button>
           <div class="meta"><div class="nm">${esc(pairName(r))} ${badge} ${copied}</div>
-            <div class="sm">${esc(pairClub(r))}・${esc(r.category||'')}・${r.durMin}分・立会：${esc(r.witness)}・${hm}</div></div>
+            <div class="sm">${esc(pairClub(r))}・${esc(r.category||'')}・${r.durMin}分・総打${r.hits||0}・落球${r.drops||0}・立会：${esc(r.witness)}・${hm}</div></div>
         </div>
         <div class="recacts">
           <button data-act="edit">✏️ 修正</button>
@@ -577,9 +630,14 @@ const Count = (()=>{
     $('batchCopyBtn').addEventListener('click', copyAll);
     $('tapBtn').addEventListener('click', tap);
     $('startBtn').addEventListener('click', start);
+    $('dropBtn').addEventListener('click', drop);
     $('stopBtn').addEventListener('click', ()=>stop(false));
     $('resetBtn').addEventListener('click', reset);
     $('previewBtn').addEventListener('click', ()=>{ ac(); playSound($('sound').value, 3); });
+    if('speechSynthesis' in window){ fillVoiceSelect(); speechSynthesis.onvoiceschanged=fillVoiceSelect; }
+    $('voice').addEventListener('change', (e)=>{ voiceName=e.target.value; localStorage.setItem('rc_voice', voiceName);
+      if(voiceName!=='none') speak('50回！いい感じですね！'); });
+    $('voicePreviewBtn').addEventListener('click', ()=>{ if(voiceName==='none'){ toast('「なし」です。声を選ぶと読み上げます'); return; } speak('30回連続！すごい！'); });
     $('recList').addEventListener('click', onListClick);
     window.addEventListener('keydown', (e)=>{ if(running && (e.code==='Space'||e.code==='Enter')){ e.preventDefault(); tap(); } });
     resendAll(); setInterval(resendAll, 30000);
@@ -722,7 +780,7 @@ const Landing = (()=>{
         <div class="lrank">${medal||(i+1)}</div>
         <div class="lmeta">
           <div class="lnm">${esc(pairName(r))}</div>
-          <div class="lsm">${esc(pairClub(r))}・${esc(r.category||'')}</div>
+          <div class="lsm">${esc(pairClub(r))}・${esc(r.category||'')}・総打${r.hits||0}</div>
         </div>
         <div class="lcnt">${r.count}<small>回</small></div>
       </div>`;
@@ -731,7 +789,7 @@ const Landing = (()=>{
   function refresh(){
     gasCall({action:'list'}, (res)=>{
       if(res && res.ok && Array.isArray(res.records)){
-        records=res.records.map(r=>({ time:r.time, club1:r.club1||'', name1:r.name1||'', club2:r.club2||'', name2:r.name2||'', category:r.category||'', durMin:Number(r.durMin)||0, count:Number(r.count)||0, status:r.status||'参考' }));
+        records=res.records.map(r=>({ time:r.time, club1:r.club1||'', name1:r.name1||'', club2:r.club2||'', name2:r.name2||'', category:r.category||'', durMin:Number(r.durMin)||0, count:Number(r.count)||0, drops:Number(r.drops)||0, hits:Number(r.hits)||0, status:r.status||'参考' }));
         loaded=true;
       }
       render();
