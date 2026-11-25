@@ -39,6 +39,8 @@
     background:var(--panel); color:var(--muted); font-size:14px; font-weight:700}
   .rank-tabs .tab.on{background:linear-gradient(180deg,#2bb3ff,#1784c7); color:#021019; border-color:transparent}
   .rank-tabs.part .tab.on{background:linear-gradient(180deg,#2fbf79,#1f8f5a)}
+  .rank-tabs.type .tab{font-size:15px}
+  .rank-tabs.type .tab.on{background:linear-gradient(180deg,#ffd54a,#e0a816); color:#201800}
   .lrow{display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line);
     border-radius:12px; padding:10px 12px; margin-bottom:8px}
   .lrow .lrank{font-weight:800; font-size:18px; min-width:1.8em; text-align:center; color:var(--muted)}
@@ -177,8 +179,9 @@
 <!-- ============ ランディング＝ランキングページ ============ -->
 <section id="landing" class="wrap hidden">
   <div class="brand">四国フレスコボール協会</div>
-  <h1>連続ラリー ランキング</h1>
-  <p class="lead">二人で続けた時間に、光を。<br>1分部門・5分部門で、連続ラリー数の記録をたたえる。</p>
+  <h1 id="landingTitle">連続ラリー ランキング</h1>
+  <p class="lead" id="landingLead">二人で続けた時間に、光を。<br>1分部門・5分部門で、連続ラリー数の記録をたたえる。</p>
+  <div class="rank-tabs type" id="typeTabs"></div>
   <div class="rank-tabs part" id="partTabs"></div>
   <div class="rank-tabs" id="catTabs"></div>
   <div id="landingList"></div>
@@ -751,15 +754,20 @@ const Board = (()=>{
 
 /* ================= 入口ランキング（Landing） ================= */
 const Landing = (()=>{
-  let records=[], part=1, cat='総合', officialOnly=true, loaded=false;
+  let records=[], kind='renketsu', part=1, cat='総合', officialOnly=true, loaded=false;
 
   function buildTabs(){
+    $('typeTabs').innerHTML = [['renketsu','🏆 連続ラリー'],['omoiyari','💛 思いやりマスター']]
+      .map(([v,l])=>`<div class="tab ${v===kind?'on':''}" data-k="${v}">${l}</div>`).join('');
     $('partTabs').innerHTML = [[1,'1分部門'],[5,'5分部門']]
       .map(([v,l])=>`<div class="tab ${v===part?'on':''}" data-v="${v}">${l}</div>`).join('');
     const cats=['総合', ...CONFIG.CATEGORIES];
     $('catTabs').innerHTML = cats
       .map(c=>`<div class="tab ${c===cat?'on':''}" data-c="${esc(c)}">${esc(c)}</div>`).join('');
+    // 思いやりマスターはカテゴリ分けなし（1分/5分部門のみ）
+    $('catTabs').classList.toggle('hidden', kind==='omoiyari');
   }
+  // ---- 連続ラリーランキング（ペアの最高連続回数） ----
   function ranked(){
     let rs = officialOnly ? records.filter(r=>r.status==='公式') : records.slice();
     rs = rs.filter(r=> Number(r.durMin)===part);
@@ -767,11 +775,46 @@ const Landing = (()=>{
     rs.sort((a,b)=> b.count-a.count || new Date(a.time)-new Date(b.time));
     return rs;
   }
+  // ---- 思いやりマスターランキング（個人・相手ごと最高1記録を合算） ----
+  function personKey(club, name){ return (clubCode(club)||club||'') + ' ' + (name||''); }
+  function omoiyariRanked(){
+    // 公式のみ・該当部門。各記録を2人へ分解し、相手ごとに最高得点(=総打−落球×3)の記録を保持
+    const rs = records.filter(r=> r.status==='公式' && Number(r.durMin)===part);
+    const people = new Map(); // key -> {club,name,partners:Map(partnerKey->{score,hits,drops})}
+    const ensure=(key,club,name)=>{ if(!people.has(key)) people.set(key,{club,name,partners:new Map()}); return people.get(key); };
+    const addPair=(key,club,name,pKey,score,h,d)=>{
+      const p=ensure(key,club,name); const prev=p.partners.get(pKey);
+      if(prev===undefined || score>prev.score) p.partners.set(pKey,{score,hits:h,drops:d});
+    };
+    rs.forEach(r=>{
+      if(!r.name1 || !r.name2) return;            // ソロ記録は対象外（2名必須）
+      const h=Number(r.hits)||0, d=Number(r.drops)||0, score=h-d*3;
+      const k1=personKey(r.club1,r.name1), k2=personKey(r.club2,r.name2);
+      if(k1===k2) return;                          // 自分と自分は無効
+      addPair(k1,r.club1,r.name1,k2,score,h,d);
+      addPair(k2,r.club2,r.name2,k1,score,h,d);
+    });
+    const arr=[...people.values()].map(p=>{
+      let sc=0, th=0, td=0;
+      p.partners.forEach(v=>{ sc+=Math.max(0,v.score); th+=v.hits; td+=v.drops; });  // 0止め
+      return { club:p.club, name:p.name, score:sc, partners:p.partners.size, hits:th, drops:td };
+    });
+    arr.sort((a,b)=> b.score-a.score || b.partners-a.partners || b.hits-a.hits);
+    return arr;
+  }
   function render(){
     buildTabs();
+    if(kind==='omoiyari'){
+      $('landingTitle').textContent='思いやりマスター ランキング';
+      $('landingLead').innerHTML='たくさんの人と、丁寧に打ち合った人に光を。<br>相手ごとの最高〔総打−落球×3〕を合算（公式のみ・1分/5分部門別）。';
+    } else {
+      $('landingTitle').textContent='連続ラリー ランキング';
+      $('landingLead').innerHTML='二人で続けた時間に、光を。<br>1分部門・5分部門で、連続ラリー数の記録をたたえる。';
+    }
     const box=$('landingList');
     if(!API){ box.innerHTML='<div class="empty">中央台帳URL未設定です（<code>?api=（/exec URL）</code> で指定 or CONFIG.GAS_URL に設定）</div>'; return; }
     if(!loaded){ box.innerHTML='<div class="empty">読み込み中…</div>'; return; }
+    if(kind==='omoiyari'){ renderOmoiyari(box); return; }
     const rs=ranked();
     if(!rs.length){ box.innerHTML='<div class="empty">この部門の記録はまだありません</div>'; return; }
     box.innerHTML = rs.slice(0,50).map((r,i)=>{
@@ -786,6 +829,21 @@ const Landing = (()=>{
       </div>`;
     }).join('');
   }
+  function renderOmoiyari(box){
+    const arr=omoiyariRanked();
+    if(!arr.length){ box.innerHTML='<div class="empty">この部門の公式記録はまだありません</div>'; return; }
+    box.innerHTML = arr.slice(0,50).map((r,i)=>{
+      const m=i<3?`m${i+1}`:''; const medal=['🥇','🥈','🥉'][i]||'';
+      return `<div class="lrow ${m}">
+        <div class="lrank">${medal||(i+1)}</div>
+        <div class="lmeta">
+          <div class="lnm">${esc(r.name)}</div>
+          <div class="lsm">${esc(clubCode(r.club))}・相手${r.partners}人・総打${r.hits}・落球${r.drops}</div>
+        </div>
+        <div class="lcnt">${r.score}<small>点</small></div>
+      </div>`;
+    }).join('');
+  }
   function refresh(){
     gasCall({action:'list'}, (res)=>{
       if(res && res.ok && Array.isArray(res.records)){
@@ -797,6 +855,7 @@ const Landing = (()=>{
   }
   function init(){
     render();
+    $('typeTabs').addEventListener('click',e=>{ const t=e.target.closest('.tab'); if(!t) return; kind=t.dataset.k; render(); });
     $('partTabs').addEventListener('click',e=>{ const t=e.target.closest('.tab'); if(!t) return; part=Number(t.dataset.v); render(); });
     $('catTabs').addEventListener('click',e=>{ const t=e.target.closest('.tab'); if(!t) return; cat=t.dataset.c; render(); });
     $('landingFoot').innerHTML='記録用URL：<code>?mode=count</code>／大画面ランキング：<code>?mode=board</code>　※ランキングは各自の「本日分まとめ送信」後に反映されます';
